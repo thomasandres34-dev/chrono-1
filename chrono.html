@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Chrono — TCMV</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --black: #080808;
+  --white: #f2f2ee;
+  --gray: #111;
+  --border: #1e1e1e;
+  --muted: #555;
+  --dim: #888;
+  --green: #39ff14;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:var(--black)}
+body{font-family:'Poppins',sans-serif;color:var(--white);display:flex;flex-direction:column}
+
+/* MAIN */
+.app{display:flex;flex-direction:column;height:100%;padding:24px 20px 32px;justify-content:space-between}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between}
+.header-label{font-size:9px;letter-spacing:4px;text-transform:uppercase;color:var(--muted)}
+.lap-count{font-size:11px;color:var(--muted);letter-spacing:1px}
+
+/* DISPLAY */
+.display{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1}
+.time-main{font-size:clamp(64px,18vw,88px);font-weight:300;letter-spacing:-4px;line-height:1;color:var(--white);font-variant-numeric:tabular-nums;transition:color .3s}
+.time-main.running{color:var(--white)}
+.time-ms{font-size:clamp(28px,8vw,40px);font-weight:300;color:var(--muted);letter-spacing:-1px;margin-top:4px}
+
+/* LAPS MINI */
+.laps-mini{margin-top:20px;display:flex;flex-direction:column;gap:4px;width:100%;max-width:320px;max-height:100px;overflow:hidden}
+.lap-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);opacity:0}
+.lap-row.visible{opacity:1;animation:fadeIn .2s ease}
+.lap-row:last-child{border-bottom:none}
+.lap-num{font-size:11px;color:var(--muted);letter-spacing:1px}
+.lap-time{font-size:13px;font-weight:500;color:var(--dim);font-variant-numeric:tabular-nums}
+.lap-row.best .lap-time{color:var(--green)}
+.lap-row.worst .lap-time{color:#ff4444}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+/* BUTTONS */
+.buttons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.btn{height:56px;border-radius:12px;border:none;font-family:'Poppins',sans-serif;font-size:12px;font-weight:500;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:opacity .15s,transform .1s;-webkit-user-select:none;display:flex;align-items:center;justify-content:center}
+.btn:active{transform:scale(0.96);opacity:0.85}
+
+.btn-start{background:var(--white);color:var(--black);grid-column:2}
+.btn-lap{background:var(--gray);color:var(--dim);border:1px solid var(--border)}
+.btn-reset{background:var(--gray);color:var(--dim);border:1px solid var(--border)}
+.btn-start.running{background:#ff4444;color:#fff}
+.btn-lap.active{color:var(--white)}
+.btn-reset.active{color:var(--white)}
+
+/* DOTS */
+.dots{display:flex;gap:6px;justify-content:center;margin-top:12px}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--border)}
+.dot.active{background:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="header">
+    <div class="header-label">Chronomètre</div>
+    <div class="lap-count" id="lap-count"></div>
+  </div>
+
+  <div class="display">
+    <div class="time-main" id="time-main">00:00</div>
+    <div class="time-ms" id="time-ms">.00</div>
+    <div class="laps-mini" id="laps-mini"></div>
+  </div>
+
+  <div>
+    <div class="buttons">
+      <button class="btn btn-lap" id="btn-lap" onclick="lapOrReset()">Tour</button>
+      <button class="btn btn-start" id="btn-start" onclick="startStop()">Start</button>
+      <button class="btn btn-reset" id="btn-reset" onclick="reset()">Reset</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var startTime = 0;
+var elapsed = 0;
+var lapStart = 0;
+var running = false;
+var raf = null;
+var laps = [];
+
+function pad(n, z){ return String(Math.floor(n)).padStart(z || 2, '0'); }
+
+function formatTime(ms){
+  var min = Math.floor(ms / 60000);
+  var sec = Math.floor((ms % 60000) / 1000);
+  var cs  = Math.floor((ms % 1000) / 10);
+  return { main: pad(min) + ':' + pad(sec), ms: '.' + pad(cs) };
+}
+
+function tick(){
+  elapsed = Date.now() - startTime;
+  var t = formatTime(elapsed);
+  document.getElementById('time-main').textContent = t.main;
+  document.getElementById('time-ms').textContent   = t.ms;
+  raf = requestAnimationFrame(tick);
+}
+
+function startStop(){
+  var btn = document.getElementById('btn-start');
+  var lapBtn = document.getElementById('btn-lap');
+  var resetBtn = document.getElementById('btn-reset');
+  if (!running) {
+    startTime = Date.now() - elapsed;
+    lapStart  = startTime;
+    running   = true;
+    btn.textContent = 'Stop';
+    btn.classList.add('running');
+    lapBtn.classList.add('active');
+    resetBtn.classList.add('active');
+    raf = requestAnimationFrame(tick);
+  } else {
+    cancelAnimationFrame(raf);
+    running = false;
+    btn.textContent = 'Start';
+    btn.classList.remove('running');
+    lapBtn.classList.remove('active');
+  }
+}
+
+function lapOrReset(){
+  if (!running) { reset(); return; }
+  var lapTime = Date.now() - lapStart;
+  lapStart = Date.now();
+  laps.unshift(lapTime);
+  renderLaps();
+  document.getElementById('lap-count').textContent = laps.length + ' tour' + (laps.length > 1 ? 's' : '');
+}
+
+function reset(){
+  cancelAnimationFrame(raf);
+  running = false;
+  elapsed = 0;
+  laps = [];
+  document.getElementById('time-main').textContent = '00:00';
+  document.getElementById('time-ms').textContent   = '.00';
+  document.getElementById('btn-start').textContent = 'Start';
+  document.getElementById('btn-start').classList.remove('running');
+  document.getElementById('btn-lap').classList.remove('active');
+  document.getElementById('btn-reset').classList.remove('active');
+  document.getElementById('lap-count').textContent = '';
+  document.getElementById('laps-mini').innerHTML = '';
+}
+
+function renderLaps(){
+  var container = document.getElementById('laps-mini');
+  var best  = laps.length > 1 ? Math.min(...laps) : null;
+  var worst = laps.length > 1 ? Math.max(...laps) : null;
+  container.innerHTML = '';
+  laps.slice(0, 5).forEach(function(l, i){
+    var t = formatTime(l);
+    var row = document.createElement('div');
+    row.className = 'lap-row visible';
+    if (best !== null && l === best)  row.classList.add('best');
+    if (worst !== null && l === worst) row.classList.add('worst');
+    row.innerHTML = '<span class="lap-num">Tour ' + (laps.length - i) + '</span>' +
+                    '<span class="lap-time">' + t.main + t.ms + '</span>';
+    container.appendChild(row);
+  });
+}
+</script>
+
+</body>
+</html>
